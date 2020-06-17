@@ -1,5 +1,5 @@
 [package]
-name = "readonlydb"
+name = "storage_engine"
 version = "0.1.0"
 authors = ["t-iwakawa-vg <Takehiko_Iwakawa@voyagegroup.com>"]
 edition = "2018"
