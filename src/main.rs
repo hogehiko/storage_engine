@@ -72,7 +72,7 @@ struct Query{
     eq: Option<String>
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 enum DataType{
     Integer,
     Str // 256 bytes固定
@@ -95,6 +95,21 @@ struct Field{
     data_type: DataType,
 }
 
+impl Field{
+    fn extract_as_byte(&self, value:&json::JsonValue) -> Vec<u8>{
+        let data = &value[&self.name];
+        if(self.data_type == DataType::Integer){
+            let i = data.as_i64().unwrap();
+            Vec::from(i.to_le_bytes())
+        }else if(self.data_type == DataType::Str){
+            let d = data.as_str().unwrap();
+            String::from(d).into_bytes()
+        }else{
+            panic!()
+        }
+    }
+} 
+
 #[derive(Serialize, Deserialize)]
 struct Schema{
     name: String,
@@ -111,21 +126,66 @@ impl Schema{
             Err(e) => Err(Box::new(e))
         }
     }
+
+    fn make_record_from_json(&self, json_str: &str) -> Result<Record, Box<dyn Error>>{
+        let json_obj = json::parse(json_str)?;
+        let mut all_data = Vec::<u8>::new();
+        for f in self.fields.iter(){
+            //let value = &json_obj[&f.name];
+            let mut data = f.extract_as_byte(&json_obj);
+            all_data.append(&mut data);
+        }
+        Ok(Record{
+            index:0,
+            body: all_data
+        })
+    }
 }
 
+#[derive(Clone)]
 struct Record{
     index: i64,
     // size: i64
+    body: Vec<u8>
+}
+
+
+impl Record{
+    fn get_index(&self)->i64{
+        0
+    }
+
+    fn get_size(&self)->usize{
+        0
+    }
 }
 struct Table{
     schema: Schema,
-    segments: Vec<Box<dyn Segment>>
-
+    in_memory_segment: InMemorySegment,
+    file_segment: Vec<FileSegment>
 }
 
 impl Table{
-    fn load(name: &str){
-        
+    fn open(name: &str)-> Result<Table, Box<dyn Error>>{
+        let schema = Schema::load(name)?;
+        let memseg = InMemorySegment::new();
+        Ok(Table{
+            schema: schema,
+            in_memory_segment: memseg,
+            file_segment: Vec::new()
+        })
+    }
+
+    fn insert(&mut self, record: &Record){
+        self.in_memory_segment.insert(record);
+    }
+
+    fn load_data_in_file(&self, filepath: &str)->Result<(), Box<dyn Error>>{
+        Ok(())
+    }
+
+    fn find(&self, index: i64) -> Option<&Record>{
+        None
     }
 }
 
@@ -140,7 +200,17 @@ struct InMemorySegment{
 impl Segment for InMemorySegment{
     fn get(&self, index: i64)->Option<&Record> {
         self.data.get(&index)
+    }
+}
 
+impl InMemorySegment{
+    fn new() -> InMemorySegment{
+        InMemorySegment{
+            data: BTreeMap::new()
+        }
+    }
+    fn insert(&mut self, record:&Record){
+        self.data.insert(record.get_index(), record.clone());
     }
 }
 
