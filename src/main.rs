@@ -110,6 +110,8 @@ impl Field{
     }
 } 
 
+
+
 #[derive(Serialize, Deserialize)]
 struct Schema{
     name: String,
@@ -130,21 +132,50 @@ impl Schema{
     fn make_record_from_json(&self, json_str: &str) -> Result<Record, Box<dyn Error>>{
         let json_obj = json::parse(json_str)?;
         let mut all_data = Vec::<u8>::new();
+        let mut field_index = Vec::<FieldIndex>::new();
+        let mut current_offset = 0;
         for f in self.fields.iter(){
             //let value = &json_obj[&f.name];
             let mut data = f.extract_as_byte(&json_obj);
             all_data.append(&mut data);
+            field_index.push(FieldIndex{
+                offset: current_offset,
+                len: data.len() as u16
+            });
+            current_offset += data.len() as u16;
         }
         Ok(Record{
-            index:0,
+            header: field_index
             body: all_data
         })
+    }
+
+    fn get_field_index(&self, name: &str) -> Option<usize>{
+        self.fields.iter().position(|x|x.name==name)
+    }
+
+    fn get_field_i64(&self, record: &Record, name: &str)->Option<i64>{
+        let index = self.get_field_index(name);
+        index.map(|i| record.header[i]).map(
+            |f: FieldIndex| -> i64{
+                let d1:[u8; 8] = [;8];
+                d1.copy_from_slice(&record.body[(f.offset as usize) .. (f.offset+f.len) as usize]);
+                i64::from_ne_bytes(d1)
+            }
+        )
+        
     }
 }
 
 #[derive(Clone)]
+struct FieldIndex{
+    offset: u16,
+    len: u16
+}
+
+#[derive(Clone)]
 struct Record{
-    index: i64,
+    header: Vec<FieldIndex>,
     // size: i64
     body: Vec<u8>
 }
