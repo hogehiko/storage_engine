@@ -106,6 +106,7 @@ impl Field{
             String::from(d).into_bytes()
         }else{
             panic!()
+            //ok
         }
     }
 } 
