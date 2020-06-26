@@ -145,7 +145,7 @@ impl Schema{
             current_offset += data.len() as u16;
         }
         Ok(Record{
-            header: field_index
+            header: field_index,
             body: all_data
         })
     }
@@ -156,9 +156,9 @@ impl Schema{
 
     fn get_field_i64(&self, record: &Record, name: &str)->Option<i64>{
         let index = self.get_field_index(name);
-        index.map(|i| record.header[i]).map(
-            |f: FieldIndex| -> i64{
-                let d1:[u8; 8] = [;8];
+        index.map(|i| &record.header[i]).map(
+            |f: &FieldIndex| -> i64{
+                let mut d1:[u8; 8] = [0;8];
                 d1.copy_from_slice(&record.body[(f.offset as usize) .. (f.offset+f.len) as usize]);
                 i64::from_ne_bytes(d1)
             }
