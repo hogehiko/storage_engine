@@ -168,16 +168,12 @@ impl Schema{
     }
 
     
-    fn get_field_str(&self, record: &Record, name: &str)->Option<String>{
+    fn get_field_str<'a>(&self, record: &'a Record, name: &str)->Option<&'a str>{
         let index = self.get_field_index(name);
         index.map(|i| &record.header[i]).map(
             |f: &FieldIndex| -> &str{
-                //let mut d1:[u8; 8] = [0;8];
-                //d1.copy_from_slice(&record.body[(f.offset as usize) .. (f.offset+f.len) as usize]);
                 let slice = &record.body[(f.offset as usize) .. (f.offset+f.len) as usize];
-                let v = Vec::<u8>::new();
-                v.copy_from_slice(slice);
-                String::from_utf8(v).unwrap()
+                std::str::from_utf8(slice).unwrap()
             }
         )
         
