@@ -166,6 +166,22 @@ impl Schema{
         )
         
     }
+
+    
+    fn get_field_str(&self, record: &Record, name: &str)->Option<String>{
+        let index = self.get_field_index(name);
+        index.map(|i| &record.header[i]).map(
+            |f: &FieldIndex| -> &str{
+                //let mut d1:[u8; 8] = [0;8];
+                //d1.copy_from_slice(&record.body[(f.offset as usize) .. (f.offset+f.len) as usize]);
+                let slice = &record.body[(f.offset as usize) .. (f.offset+f.len) as usize];
+                let v = Vec::<u8>::new();
+                v.copy_from_slice(slice);
+                String::from_utf8(v).unwrap()
+            }
+        )
+        
+    }
 }
 
 #[derive(Clone)]
@@ -175,6 +191,7 @@ struct FieldIndex{
 }
 
 #[derive(Clone)]
+// 
 struct Record{
     header: Vec<FieldIndex>,
     // size: i64
@@ -183,12 +200,20 @@ struct Record{
 
 
 impl Record{
-    fn get_index(&self)->i64{
-        0
+    fn total_size(&self) -> usize{
+        self.header_size()+self.total_size()
     }
 
-    fn get_size(&self)->usize{
-        0
+    fn header_size(&self)->usize{
+        self.header.len() * std::mem::size_of::<FieldIndex>()
+    }
+
+    fn body_size(&self) -> usize{
+        self.body.len() * std::mem::size_of::<u8>()
+    }
+
+    fn record_size(&self)->usize{
+        std::mem::size_of::<usize>() * 2 + self.total_size()
     }
 }
 struct Table{
@@ -217,7 +242,7 @@ impl Table{
     }
 
     fn find(&self, index: i64) -> Option<&Record>{
-        None
+        self.in_memory_segment.get(index)
     }
 }
 
