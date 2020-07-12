@@ -199,7 +199,7 @@ fn create(name: &str, schema: &str, primary: &str)->std::io::Result<()> {
         Some(x) => {
             let s = Schema{
                 name: name.to_string(),
-                primary: x.clone(),
+                primary_key_name: "".to_string(), // primary_f.unwrap().name,
                 fields: fields,
             };
             let mut schema_file = File::create(format!("{}.def", name))?;

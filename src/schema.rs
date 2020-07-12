@@ -59,12 +59,20 @@ impl Field{
 #[derive(Serialize, Deserialize)]
 pub struct Schema{
     pub name: String,
-    pub primary: Field,
+    pub primary_key_name: String,
     pub fields: Vec<Field>
 }
 
 
 impl Schema{
+    pub fn primary(&self)->&Field{
+        self.get_field(&self.primary_key_name).unwrap() // 存在しないなら落ちてOK
+    }
+
+    pub fn get_field(&self, name: &str) -> Option<&Field>{
+        self.fields.iter().find(|x|x.name==name)
+    }
+
     pub fn load(table: &str)->Result<Schema, Box<dyn std::error::Error>>{
         let schema_str = std::fs::read_to_string(format!("{}.def", table))?;
         match serde_json::from_str::<Schema>(&schema_str){
@@ -110,7 +118,7 @@ impl Schema{
     }
 
     pub fn get_key(&self, record: &Record) -> i64{
-        self.get_field_i64(record, &self.primary.name).unwrap()
+        self.get_field_i64(record, &self.primary().name).unwrap()
     }
 
     
@@ -125,6 +133,7 @@ impl Schema{
         
     }
 }
+
 
 #[derive(Clone, Debug)]
 pub struct FieldIndex{
@@ -156,5 +165,18 @@ impl Record{
 
     pub fn record_size(&self)->usize{
         std::mem::size_of::<usize>() * 2 + self.total_size()
+    }
+}
+
+#[cfg(test)]
+mod tests{
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 3);
+    }
+
+    #[test]
+    fn serialize_deserialize_schema(){
+        // let scm = Schema::load(table: &str)
     }
 }
