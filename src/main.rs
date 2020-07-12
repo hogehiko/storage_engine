@@ -10,6 +10,8 @@ extern crate serde;
 #[macro_use]
 extern crate serde_json;
 
+extern crate storage_engine;
+
 use std::fs::File;
 use std::error::Error;
 use std::io::BufReader;
@@ -18,6 +20,8 @@ use std::io::SeekFrom;
 use std::io::{self, ErrorKind};
 use std::io::stdin;
 use std::mem;
+
+use storage_engine::table::*;
 
 use std::collections::BTreeMap;
 
