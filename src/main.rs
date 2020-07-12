@@ -22,6 +22,7 @@ use std::io::stdin;
 use std::mem;
 
 use storage_engine::table::*;
+use storage_engine::schema::*;
 
 use std::collections::BTreeMap;
 
@@ -77,149 +78,7 @@ struct Server{
     data_json: Option<String>
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
-enum DataType{
-    Integer,
-    Str
-}
 
-
-
-impl DataType{
-    fn from_string(value: &str) -> DataType{
-        if value == "i"{
-            return DataType::Integer;
-        }
-        return DataType::Str;
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-struct Field{
-    name: String,
-    data_type: DataType,
-}
-
-impl Field{
-    fn extract_as_byte(&self, value:&json::JsonValue) -> Vec<u8>{
-        let data = &value[&self.name];
-        if(self.data_type == DataType::Integer){
-            let i = data.as_i64().unwrap();
-            Vec::from(i.to_le_bytes())
-        }else if(self.data_type == DataType::Str){
-            let d = data.as_str().unwrap();
-            String::from(d).into_bytes()
-        }else{
-            panic!()
-            //ok
-        }
-    }
-} 
-
-
-
-#[derive(Serialize, Deserialize)]
-struct Schema{
-    name: String,
-    primary: Field,
-    fields: Vec<Field>
-}
-
-
-impl Schema{
-    fn load(table: &str)->Result<Schema, Box<dyn std::error::Error>>{
-        let schema_str = std::fs::read_to_string(format!("{}.def", table))?;
-        match serde_json::from_str::<Schema>(&schema_str){
-            Ok(x)=> Ok(x),
-            Err(e) => Err(Box::new(e))
-        }
-    }
-
-    fn make_record_from_json(&self, json_str: &str) -> Result<Record, Box<dyn Error>>{
-        let json_obj = json::parse(json_str)?;
-        let mut all_data = Vec::<u8>::new();
-        let mut field_index = Vec::<FieldIndex>::new();
-        let mut current_offset = 0;
-        for f in self.fields.iter(){
-            //let value = &json_obj[&f.name];
-            let mut data = f.extract_as_byte(&json_obj);
-            all_data.append(&mut data);
-            field_index.push(FieldIndex{
-                offset: current_offset,
-                len: data.len() as u16
-            });
-            current_offset += data.len() as u16;
-        }
-        Ok(Record{
-            header: field_index,
-            body: all_data
-        })
-    }
-
-    fn get_field_index(&self, name: &str) -> Option<usize>{
-        self.fields.iter().position(|x|x.name==name)
-    }
-
-    fn get_field_i64(&self, record: &Record, name: &str)->Option<i64>{
-        let index = self.get_field_index(name);
-        index.map(|i| &record.header[i]).map(
-            |f: &FieldIndex| -> i64{
-                let mut d1:[u8; 8] = [0;8];
-                d1.copy_from_slice(&record.body[(f.offset as usize) .. (f.offset+f.len) as usize]);
-                i64::from_ne_bytes(d1)
-            }
-        )
-    }
-
-    fn get_key(&self, record: &Record) -> i64{
-        self.get_field_i64(record, &self.primary.name).unwrap()
-    }
-
-    
-    fn get_field_str<'a>(&self, record: &'a Record, name: &str)->Option<&'a str>{
-        let index = self.get_field_index(name);
-        index.map(|i| &record.header[i]).map(
-            |f: &FieldIndex| -> &str{
-                let slice = &record.body[(f.offset as usize) .. (f.offset+f.len) as usize];
-                std::str::from_utf8(slice).unwrap()
-            }
-        )
-        
-    }
-}
-
-#[derive(Clone, Debug)]
-struct FieldIndex{
-    offset: u16,
-    len: u16
-}
-
-#[derive(Clone, Debug)]
-// 
-struct Record{
-    header: Vec<FieldIndex>,
-    // size: i64
-    body: Vec<u8>
-}
-
-
-impl Record{
-    fn total_size(&self) -> usize{
-        self.header_size()+self.total_size()
-    }
-
-    fn header_size(&self)->usize{
-        self.header.len() * std::mem::size_of::<FieldIndex>()
-    }
-
-    fn body_size(&self) -> usize{
-        self.body.len() * std::mem::size_of::<u8>()
-    }
-
-    fn record_size(&self)->usize{
-        std::mem::size_of::<usize>() * 2 + self.total_size()
-    }
-}
 struct Table{
     schema: Schema,
     in_memory_segment: InMemorySegment,
