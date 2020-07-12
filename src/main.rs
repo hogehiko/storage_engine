@@ -16,6 +16,7 @@ use std::io::BufReader;
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::io::{self, ErrorKind};
+use std::io::stdin;
 use std::mem;
 
 use std::collections::BTreeMap;
@@ -38,7 +39,7 @@ struct Opts {
 enum SubCommand {
     #[clap(version = "0.0", author = "Takehiko Iwakawa<takrockjp@gmail.com>")]
     Load(Load),
-    Query(Query),
+    Server(Server),
     Create(Create)
 }
 
@@ -64,18 +65,18 @@ struct Create {
 }
 
 #[derive(Clap)]
-struct Query{
+struct Server{
     #[clap(long)]
-    key: String,
+    table: String,
 
     #[clap(long)]
-    eq: Option<String>
+    data_json: Option<String>
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 enum DataType{
     Integer,
-    Str // 256 bytes固定
+    Str
 }
 
 
@@ -164,7 +165,10 @@ impl Schema{
                 i64::from_ne_bytes(d1)
             }
         )
-        
+    }
+
+    fn get_key(&self, record: &Record) -> i64{
+        self.get_field_i64(record, &self.primary.name).unwrap()
     }
 
     
@@ -180,13 +184,13 @@ impl Schema{
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct FieldIndex{
     offset: u16,
     len: u16
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 // 
 struct Record{
     header: Vec<FieldIndex>,
@@ -230,7 +234,7 @@ impl Table{
     }
 
     fn insert(&mut self, record: &Record){
-        self.in_memory_segment.insert(record);
+        self.in_memory_segment.insert(&self.schema, record);
     }
 
     fn load_data_in_file(&self, filepath: &str)->Result<(), Box<dyn Error>>{
@@ -257,13 +261,13 @@ impl Segment for InMemorySegment{
 }
 
 impl InMemorySegment{
-    fn new() -> InMemorySegment{
+    fn new( ) -> InMemorySegment{
         InMemorySegment{
             data: BTreeMap::new()
         }
     }
-    fn insert(&mut self, record:&Record){
-        self.data.insert(record.get_index(), record.clone());
+    fn insert(&mut self, schema: &Schema, record:&Record){
+        self.data.insert(schema.get_key(record), record.clone());
     }
 }
 
@@ -356,6 +360,26 @@ fn to_field(schema: &str) -> Vec<Field>{
     result
 }
 
+fn query_loop(table: &str, initial_data: &str)->Result<(), Box<dyn Error>>{
+    // initialize data
+    let table = Table::open(table)?;
+    table.load_data_in_file(initial_data)?;
+    loop{
+        let mut key: String = String::new();
+        stdin().read_line(&mut key);
+
+        if key == "exit"{
+            break;
+        }else{
+            
+            let key: i64 = key.parse()?;
+            let result = table.find(key);
+            println!("{:?}", result);
+        }
+    }
+    Ok(())
+}
+
 
 fn main() -> std::io::Result<()> {
     let opts: Opts = Opts::parse();
@@ -363,8 +387,9 @@ fn main() -> std::io::Result<()> {
         SubCommand::Load(l) => {
             println!("Load {}", l.file);
         },
-        SubCommand::Query(q) => {
-            println!("Query {}", q.key);
+        SubCommand::Server(option) => {
+            query_loop(&option.table,  &option.data_json.unwrap());
+            ()
         },
         SubCommand::Create(c) => {
             println!("Create {}", c.name);
@@ -379,14 +404,14 @@ fn main() -> std::io::Result<()> {
     //     println!("{}", obj.unwrap());
     // }
 
-    let mut bt = BTreeMap::new();
-    bt.insert(3, "333");
-    bt.insert(1, "111");
-    bt.insert(2, "222");
-    bt.insert(-100, "222");
+    // let mut bt = BTreeMap::new();
+    // bt.insert(3, "333");
+    // bt.insert(1, "111");
+    // bt.insert(2, "222");
+    // bt.insert(-100, "222");
 
-    for (k,v) in bt.into_iter(){
-        println!("{}", k);
-    }
+    // for (k,v) in bt.into_iter(){
+    //     println!("{}", k);
+    // }
     Ok(())
 }
